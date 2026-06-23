@@ -9,7 +9,7 @@
 ## 檔案結構
 
 ```
-TAIROA/
+Tairoa-CV/
 ├── README.md                ← 本說明
 ├── requirements.txt         ← 套件清單
 ├── .gitignore
@@ -21,14 +21,23 @@ TAIROA/
 
 ---
 
-## A. 上傳到 GitHub(在筆電的 TAIROA 資料夾裡)
+## A. 上傳到 GitHub
+
+### 方式一:用網頁上傳 (最簡單)
+
+1. 到 github.com 建立新 repository (不要勾 Add README)
+2. 進入 repo → **Add file → Upload files**
+3. 把資料夾裡的檔案全選拖進去 → **Commit changes**
+
+### 方式二:用命令列
 
 ```bash
+cd Tairoa-CV
 git init
 git add .
 git commit -m "init: gesture pick and place"
 git branch -M main
-git remote add origin https://github.com/<你的帳號>/<repo名>.git
+git remote add origin https://github.com/Omamibebeom/Tairoa-CV.git
 git push -u origin main
 ```
 
@@ -65,12 +74,13 @@ python test_webcam.py
 用 **Raspberry Pi Imager** 燒 **Raspberry Pi OS (64-bit) Bookworm**(不要 Trixie)。
 燒錄前在進階設定開好 **SSH**、設定 **帳密** 與 **WiFi**。
 
-### 2) 連進 Pi 並更新
+### 2) 從筆電連進 Pi 並更新
+兩台接同一個 WiFi,在筆電終端機:
 ```bash
-ssh pi@pi5.local
+ssh pi@pi5.local                      # 帳號換成你設的;連不上就改用 IP
 sudo apt update && sudo apt full-upgrade -y
-rpicam-hello --list-cameras          # CSI 相機有列出就 OK (USB webcam 則改用 cv2)
-sudo apt install -y fonts-noto-cjk   # 中文橫幅字型 (不裝會退回英文)
+rpicam-hello --list-cameras           # CSI 相機有列出就 OK
+sudo apt install -y fonts-noto-cjk    # 中文橫幅字型 (不裝會退回英文)
 ```
 
 ### 3) 從 GitHub 下載並安裝
@@ -78,8 +88,8 @@ sudo apt install -y fonts-noto-cjk   # 中文橫幅字型 (不裝會退回英文
 `--system-site-packages` 讓虛擬環境看得到它們:
 
 ```bash
-git clone https://github.com/<你的帳號>/<repo名>.git
-cd <repo名>/TAIROA            # 視你的 repo 結構,進到有 .py 的那層
+git clone https://github.com/Omamibebeom/Tairoa-CV.git
+cd Tairoa-CV
 python -m venv --system-site-packages venv
 source venv/bin/activate
 pip install mediapipe opencv-python numpy pillow
@@ -102,14 +112,40 @@ python gesture_pick_place.py
 
 ---
 
-## D. 繼電器測試 (relay_control.py)
+## D. 繼電器接線與測試 (relay_control.py)
 
-接到手臂機櫃前,先單獨測繼電器:
-```bash
-python relay_control.py        # 打 on ch1 / off ch1 / pulse ch1 / status / quit
+### 接線圖 (4-relay module → Pi 5)
+
 ```
-打 `on` 沒反應、`off` 反而吸合,代表是低電位觸發模組,把 `ACTIVE_HIGH` 改成 `False`。
-繼電器是乾接點 (COM/NO) 接進手臂機櫃數位輸入,電氣隔離,不必擔心 3.3V 對 24V。
+繼電器模組        樹莓派 Pi 5
+──────────        ──────────────────────
+VCC           →   5V      (實體腳位 2)
+GND           →   GND     (實體腳位 34)
+IN1           →   GPIO5   (實體腳位 29)
+IN2           →   GPIO6   (實體腳位 31)
+IN3           →   GPIO13  (實體腳位 33)
+IN4           →   GPIO16  (實體腳位 36)
+
+繼電器輸出端 COM/NO → 接到手臂機櫃的數位輸入端子
+(繼電器吸合時 COM-NO 導通 = 送訊號給手臂)
+```
+
+> 在 Pi 終端機打 `pinout` 可看完整腳位圖,從上面數到對應編號再插。
+
+### 測試
+
+```bash
+python relay_control.py        # 進入互動模式
+> on ch1                        # 應該聽到「喀」→ 代表接線正確
+> off ch1
+> pulse ch1                     # 喀一下就放開 (送脈衝)
+> status                        # 看所有通道狀態
+> quit                          # ★ 一定要打 quit 結束,不要 Ctrl-Z
+```
+
+- 打 `on` 沒反應、`off` 反而吸合 → 低電位觸發模組,把 `ACTIVE_HIGH` 改成 `False`
+- 出現 `GPIO busy` → GPIO 被別的程式佔住,`sudo reboot` 後重試
+- 繼電器是乾接點 (COM/NO) 接進手臂機櫃數位輸入,電氣隔離,不必擔心 3.3V 對 24V
 
 ---
 
