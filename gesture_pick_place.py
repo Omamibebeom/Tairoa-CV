@@ -3,14 +3,13 @@
 =====================================================
 TAIROA「視覺與機器人整合實作練習」
 
-【兩階段使用方式 (重要)】
-  階段一:座機設定環境、尚未接繼電器/手臂
-          → 設定區把 DRY_RUN = True
-          → 不使用 GPIO,手臂/夾爪動作用假的 sleep 代替
-          → 可單獨驗證「相機 + 數手指 + 倒數 + 紅綠視窗」是否正常
-  階段二:把 Pi 拆下來、接好繼電器與手臂之後
-          → 設定區把 DRY_RUN = False
-          → 改用真實 GPIO 控制繼電器 / 手臂 / 氣動夾爪
+【課程兩階段:同一支程式,用 FAKE_ARM 開關切換】
+  ★ 第一階段 (FAKE_ARM = True):
+      Pi 接螢幕 + 鍵盤 + 相機,只測「數手指 + 倒數鎖定 + 紅綠視窗」。
+      手臂動作用假的 sleep 代替,完全不碰 GPIO/繼電器/手臂 → 接好相機就能跑。
+  ★ 第二階段 (FAKE_ARM = False):
+      接上繼電器與手臂,送真實 GPIO 訊號控制手臂取放與氣動夾爪。
+  ↑ 設定區最上面就有這個開關;第一階段測順了,把它改成 False 進第二階段。
 
 【整體流程】
   1. Pi 5 的 CSI 相機拍攝畫面
@@ -74,11 +73,11 @@ except ImportError:
 #  設定區 (依你的硬體修改這一段就好,其他程式碼不用動)
 # =====================================================================
 
-# --- 執行模式 (★ 階段一/階段二切換就改這一個) ---
-# True  = 階段一:不碰 GPIO,手臂/夾爪用假動作 (座機設定環境、驗證辨識用)
-# False = 階段二:使用真實 GPIO,控制繼電器/手臂/氣動 (接好硬體後)
-DRY_RUN = True
-FAKE_RUN_SEC = 4.0        # DRY_RUN 模式下假裝手臂作動的秒數 (紅色維持多久)
+# --- ★ 階段開關 (最重要,先決定你在哪一階段) ---
+#   FAKE_ARM = True  → 【第一階段】只測手勢辨識:相機 + 倒數 + 紅綠視窗,
+#                      手臂用假動作 (sleep) 代替,不初始化任何 GPIO,不接硬體就能跑。
+#   FAKE_ARM = False → 【第二階段】接好繼電器與手臂,送真實 GPIO 訊號控制手臂與夾爪。
+FAKE_ARM = False
 
 # --- 模型路徑 (用 __file__ 取程式檔所在資料夾,不管從哪裡執行都找得到) ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -109,6 +108,7 @@ INFLATE_SEC      = 2.0    # 充氣時間 (秒)
 DEFLATE_SEC      = 2.0    # 洩氣時間 (秒)
 PULSE_SEC        = 0.2    # 送給手臂的脈衝寬度 (秒)
 MOVE_TIMEOUT_SEC = 30     # 等手臂 DONE 的逾時 (秒)
+FAKE_RUN_SEC     = 4.0    # 【第一階段專用】模擬手臂作動的秒數 (紅色橫幅維持多久)
 
 
 # =====================================================================
@@ -206,7 +206,7 @@ class Banner:
 
 
 # =====================================================================
-#  與手臂的數位握手 (GPIO)   ※ 只有 DRY_RUN = False 時才會用到
+#  與手臂的數位握手 (GPIO)
 # =====================================================================
 class ArmIO:
     """
@@ -243,7 +243,7 @@ class ArmIO:
 
 
 # =====================================================================
-#  氣動夾爪   ※ 只有 DRY_RUN = False 時才會用到
+#  氣動夾爪
 # =====================================================================
 class Gripper:
     """
@@ -275,16 +275,7 @@ class Gripper:
 #  一次完整取放循環 (背景執行緒,視窗不會卡)
 # =====================================================================
 def run_cycle(arm, gripper, count):
-    """取→放一次:去取料點→充氣→去放置點→洩氣。DRY_RUN 時改用假動作。"""
-
-    # 階段一:沒接硬體,假裝手臂在動作 (紅色橫幅維持 FAKE_RUN_SEC 秒)
-    if DRY_RUN:
-        print(f"[模擬] 鎖定 {count} 指 → (未接硬體) 假裝手臂移動/充氣/放置/洩氣…")
-        time.sleep(FAKE_RUN_SEC)
-        print("[模擬] 假裝完成,回到待機\n")
-        return
-
-    # 階段二:真實硬體流程
+    """取→放一次:去取料點→充氣→去放置點→洩氣。"""
     print(f"[流程] 鎖定 {count} 指 → 送出取料點 {count} 指令")
     if not arm.goto_pick(count):
         print("[警告] 等手臂取料移動逾時,取消本次循環"); return
@@ -298,24 +289,34 @@ def run_cycle(arm, gripper, count):
     print("[流程] 完成一個循環,回到待機\n")
 
 
+def fake_cycle(count):
+    """
+    【第一階段】不接手臂時的假動作。
+    只 sleep 一段時間,讓紅色橫幅維持 FAKE_RUN_SEC 秒,
+    用來驗證「鎖定 → 作動中 → 回待機」的狀態切換,完全不碰 GPIO。
+    """
+    print(f"[模擬] 鎖定 {count} 指 → 假裝手臂移動 / 充氣 / 放置 / 洩氣…")
+    time.sleep(FAKE_RUN_SEC)
+    print("[模擬] 假裝手臂完成,回到待機\n")
+
+
 # =====================================================================
 #  主程式 (狀態機 + 倒數鎖定 + 顯示視窗)
 # =====================================================================
 #  狀態機:DETECTING (偵測/倒數) → RUNNING (手臂作動) → DETECTING
 def main():
     cam = FingerCam(MODEL_PATH)
+    banner = Banner(FONT_PATH, size=40)
 
-    # 依模式決定要不要初始化 GPIO。階段一 (DRY_RUN) 完全不碰 GPIO。
-    if DRY_RUN:
+    # 第一階段 (FAKE_ARM=True) 不初始化任何 GPIO/手臂/夾爪,接好相機就能跑。
+    if FAKE_ARM:
         gripper = None
         arm = None
-        print("※ DRY_RUN 模式:未使用 GPIO,手臂/夾爪為假動作。")
-        print("  接好繼電器與手臂後,把設定區的 DRY_RUN 改成 False。")
+        print("== 第一階段:只測手勢辨識 (FAKE_ARM=True,不碰 GPIO/手臂) ==")
     else:
         gripper = Gripper(PUMP_PIN, VALVE_PIN)
         arm = ArmIO(PICK_PINS, PLACE_PIN, DONE_PIN)
-
-    banner = Banner(FONT_PATH, size=40)
+        print("== 第二階段:接繼電器與手臂 (FAKE_ARM=False) ==")
 
     state = "DETECTING"
     candidate = None             # 目前正在倒數的手指數
@@ -333,8 +334,13 @@ def main():
                     if count == candidate:
                         if now - countdown_start >= COUNTDOWN_SEC:
                             # 倒數結束、手勢沒變 → 鎖定,開背景執行緒跑手臂
-                            worker = threading.Thread(
-                                target=run_cycle, args=(arm, gripper, count), daemon=True)
+                            # 第一階段跑假動作 (fake_cycle),第二階段跑真手臂 (run_cycle)
+                            if FAKE_ARM:
+                                worker = threading.Thread(
+                                    target=fake_cycle, args=(count,), daemon=True)
+                            else:
+                                worker = threading.Thread(
+                                    target=run_cycle, args=(arm, gripper, count), daemon=True)
                             worker.start()
                             state = "RUNNING"
                     else:
@@ -370,11 +376,6 @@ def main():
             cv2.putText(frame, label, (20, 110),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
 
-            # DRY_RUN 時在畫面標示,提醒手臂不會真的動
-            if DRY_RUN:
-                cv2.putText(frame, "[DRY RUN - no hardware]", (20, 140),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-
             cv2.imshow("Gesture -> Arm", frame)
             if cv2.waitKey(1) & 0xFF in (27, ord("q")):
                 break
@@ -382,7 +383,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        if gripper is not None:      # 階段一沒有 gripper,跳過
+        if gripper is not None:   # 第一階段沒有夾爪物件,不用關
             gripper.off()
         cam.close()
         cv2.destroyAllWindows()

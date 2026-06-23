@@ -1,4 +1,11 @@
+# pip 安裝的套件 (筆電與 Pi 共用)
 mediapipe
 opencv-python
 numpy
 pillow
+
+# 注意:picamera2 與 gpiozero 不在這裡。
+# 它們在 Raspberry Pi OS Bookworm 已內建,屬系統套件,不用 pip 裝。
+# 建 venv 時要加 --system-site-packages 才看得到它們:
+#   python -m venv --system-site-packages venv
+# 筆電 (跑 test_webcam.py) 用不到這兩個,所以筆電裝本清單即可。

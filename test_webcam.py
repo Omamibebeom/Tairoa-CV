@@ -1,6 +1,13 @@
 """
 手指數量 + 倒數鎖定 + 紅綠視窗  測試 (筆電 / USB webcam 用)
 ==========================================================
+【這支在課程裡的定位】
+  屬於「上樹莓派之前的筆電預演」,不是正式的第一階段。
+  正式第一階段是在 Pi 上接螢幕+鍵盤+CSI 相機,跑 gesture_pick_place.py 並把
+  FAKE_ARM 設成 True (同樣只測辨識、不接手臂)。
+  想先在自己筆電上熟悉流程,或手邊只有 USB webcam,就先跑這支。
+  (這支也能在 Pi 上用 USB webcam 跑;若用的是 CSI 相機,請改用主程式 FAKE_ARM=True。)
+
 跟主程式 gesture_pick_place.py 同樣的流程,但:
   * 用筆電 webcam (cv2.VideoCapture) 取代 Picamera2
   * 手臂動作用「假的 sleep」取代,不需 GPIO / 手臂 / 氣動
