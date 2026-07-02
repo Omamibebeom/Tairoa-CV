@@ -1,16 +1,12 @@
-# 手臂視覺定位專案相依套件
+# 手臂視覺定位 + 氣動夾爪(筆電 + Arduino + L298N)相依套件
 # 注意:opencv-contrib-python 與 opencv-python 不可同時安裝(會衝突)。
-# 本專案用到 cv2.aruco,一定要 contrib 版;視覺工具要開視窗,不要裝 -headless 版。
+# 專案用到 cv2.aruco,一定要 contrib 版;視覺工具要開視窗,不要裝 -headless 版。
 
 numpy>=1.24
 opencv-contrib-python>=4.8
 
-# pygrabber 只用在 Windows「用相機名稱找編號」,樹莓派(Linux)不需要也裝不起來,
-# 用環境標記讓它只在 Windows 安裝。Linux 上程式會自動退回用相機編號。
-pygrabber; sys_platform == "win32"
+# Arduino USB 序列通訊(套件名 pyserial,程式裡 import serial)
+pyserial>=3.5
 
-# ── 氣動夾爪(樹莓派 GPIO + L298N)需要 ─────────────────────────
-# gpiozero 驅動 L298N;lgpio 是樹莓派 5 / 新版 Pi OS 的後端。
-# 只在 Linux(樹莓派)安裝;在筆電上 gripper.py 會自動進入模擬模式,不需要它。
-gpiozero; sys_platform == "linux"
-lgpio; sys_platform == "linux"
+# 只在 Windows 用「相機名稱」找編號;Linux 上會自動退回用相機編號
+pygrabber; sys_platform == "win32"
