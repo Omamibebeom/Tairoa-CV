@@ -1,9 +1,0 @@
-# Python
-__pycache__/
-*.pyc
-venv/
-.venv/
-
-# 系統
-.DS_Store
-__MACOSX/
